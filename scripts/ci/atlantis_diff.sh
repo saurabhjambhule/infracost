@@ -195,6 +195,20 @@ post_to_slack () {
   fi
 }
 
+post_github_comment () {
+  msg="$(build_msg false)"
+  if [ "$atlantis_debug" = "true" ]; then
+    echo "Posting comment to Github"
+    jq -Mnc --arg msg "$msg" '{"body": "\($msg)"}' | curl -L -X POST -d @- \
+      -H "Authorization: token ${ATLANTIS_GH_TOKEN}" \
+      "https://api.github.com/repos/${BASE_REPO_OWNER}/${BASE_REPO_NAME}/issues/${PULL_NUM}/comments"
+  else
+    jq -Mnc --arg msg "$msg" '{"body": "\($msg)"}' | curl -S -s -o /dev/null -L -X POST -d @- \
+      -H "Authorization: token ${ATLANTIS_GH_TOKEN}" \
+      "https://api.github.com/repos/${BASE_REPO_OWNER}/${BASE_REPO_NAME}/issues/${PULL_NUM}/comments"
+  fi
+}
+
 cleanup () {
   rm -f infracost_breakdown.json infracost_breakdown_cmd infracost_output_cmd
 }
@@ -272,11 +286,17 @@ else
   exit 0
 fi
 
-msg="$(build_msg)"
-echo "$msg"
+if [ -z "$DISABLE_ATLANTIS_COMMENT" ]; then
+  msg="$(build_msg)"
+  echo "$msg"
+fi
 
 if [ -n "$SLACK_WEBHOOK_URL" ]; then
   post_to_slack
+fi
+
+if [ -n "$GITHUB_COMMENT" ]; then
+  post_github_comment
 fi
 
 cleanup
